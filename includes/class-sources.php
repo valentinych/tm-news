@@ -21,34 +21,11 @@ final class Sources {
     /** @return array<string, array{name:string,url:string,weight:float,enabled:bool}> */
     public static function defaults(): array {
         return [
+            // --- Рабочие, проверено ---
             'trojmiasto_pl' => [
                 'name'    => 'Trojmiasto.pl',
-                'url'     => 'https://www.trojmiasto.pl/rss/Trojmiasto-nsz-2.xml',
+                'url'     => 'https://www.trojmiasto.pl/rss/news.xml',
                 'weight'  => 1.0,
-                'enabled' => true,
-            ],
-            'naszemiasto_gdansk' => [
-                'name'    => 'Nasze Miasto Gdańsk',
-                'url'     => 'https://gdansk.naszemiasto.pl/rss.xml',
-                'weight'  => 0.7,
-                'enabled' => true,
-            ],
-            'naszemiasto_gdynia' => [
-                'name'    => 'Nasze Miasto Gdynia',
-                'url'     => 'https://gdynia.naszemiasto.pl/rss.xml',
-                'weight'  => 0.7,
-                'enabled' => true,
-            ],
-            'naszemiasto_sopot' => [
-                'name'    => 'Nasze Miasto Sopot',
-                'url'     => 'https://sopot.naszemiasto.pl/rss.xml',
-                'weight'  => 0.7,
-                'enabled' => true,
-            ],
-            'dziennikbaltycki' => [
-                'name'    => 'Dziennik Bałtycki',
-                'url'     => 'https://dziennikbaltycki.pl/rss.xml',
-                'weight'  => 0.85,
                 'enabled' => true,
             ],
             'radiogdansk' => [
@@ -57,23 +34,63 @@ final class Sources {
                 'weight'  => 0.9,
                 'enabled' => true,
             ],
-            'zawszepomorze' => [
-                'name'    => 'Zawsze Pomorze',
-                'url'     => 'https://zawszepomorze.pl/feed/',
-                'weight'  => 0.6,
-                'enabled' => true,
-            ],
-            'gdansk_pl' => [
-                'name'    => 'Gdańsk.pl (oficjalny)',
-                'url'     => 'https://www.gdansk.pl/rss/aktualnosci.xml',
-                'weight'  => 0.7,
-                'enabled' => true,
-            ],
             'gdynia_pl' => [
                 'name'    => 'Gdynia.pl (oficjalny)',
                 'url'     => 'https://www.gdynia.pl/rss',
                 'weight'  => 0.7,
                 'enabled' => true,
+            ],
+            'pomorskie_eu' => [
+                'name'    => 'Pomorskie.eu (Urząd Marszałkowski)',
+                'url'     => 'https://www.pomorskie.eu/feed',
+                'weight'  => 0.6,
+                'enabled' => true,
+            ],
+            'expressbiznesu' => [
+                'name'    => 'Express Biznesu',
+                'url'     => 'https://expressbiznesu.pl/feed',
+                'weight'  => 0.5,
+                'enabled' => true,
+            ],
+
+            // --- Отключены по умолчанию: 403 anti-bot или нет стабильного RSS.
+            // Оставлены в списке, чтобы в админке можно было попробовать другой URL
+            // (например, через прокси или новый путь, если редакция его откроет).
+            'dziennikbaltycki' => [
+                'name'    => 'Dziennik Bałtycki',
+                'url'     => 'https://dziennikbaltycki.pl/rss.xml',
+                'weight'  => 0.85,
+                'enabled' => false,
+            ],
+            'naszemiasto_gdansk' => [
+                'name'    => 'Nasze Miasto Gdańsk',
+                'url'     => 'https://gdansk.naszemiasto.pl/rss.xml',
+                'weight'  => 0.7,
+                'enabled' => false,
+            ],
+            'naszemiasto_gdynia' => [
+                'name'    => 'Nasze Miasto Gdynia',
+                'url'     => 'https://gdynia.naszemiasto.pl/rss.xml',
+                'weight'  => 0.7,
+                'enabled' => false,
+            ],
+            'naszemiasto_sopot' => [
+                'name'    => 'Nasze Miasto Sopot',
+                'url'     => 'https://sopot.naszemiasto.pl/rss.xml',
+                'weight'  => 0.7,
+                'enabled' => false,
+            ],
+            'zawszepomorze' => [
+                'name'    => 'Zawsze Pomorze',
+                'url'     => 'https://zawszepomorze.pl/feed/',
+                'weight'  => 0.6,
+                'enabled' => false,
+            ],
+            'gdansk_pl' => [
+                'name'    => 'Gdańsk.pl (oficjalny)',
+                'url'     => 'https://www.gdansk.pl/rss/aktualnosci.xml',
+                'weight'  => 0.7,
+                'enabled' => false,
             ],
             'sopot_pl' => [
                 'name'    => 'Sopot.pl (oficjalny)',

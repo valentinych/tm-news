@@ -40,6 +40,20 @@ final class Publisher {
         $translator = Translator_OpenAI::from_options() ?? new Translator_Null();
         $is_null    = $translator instanceof Translator_Null;
 
+        // Безопасность: без настроенного LLM мы НЕ создаём реальные посты —
+        // иначе в черновики попадёт нетронутый польский текст.
+        // Dry-run остаётся разрешённым, чтобы в админке можно было увидеть,
+        // какие кластеры поднялись бы наверх.
+        if ( $is_null && ! $dry_run ) {
+            Logger::warn( 'publish skipped: OpenAI key not configured' );
+            return [
+                'created' => [],
+                'skipped' => count( $clusters ),
+                'errors'  => [ [ 'cluster' => 0, 'err' => 'OpenAI API key is not configured; posts not created' ] ],
+                'dry_run' => false,
+            ];
+        }
+
         $created = [];
         $skipped = 0;
         $errors  = [];
