@@ -20,6 +20,8 @@ final class Admin {
         add_action( 'admin_post_tm_news_run_now',     [ $this, 'handle_run_now' ] );
         add_action( 'admin_post_tm_news_clear_log',   [ $this, 'handle_clear_log' ] );
         add_action( 'admin_post_tm_news_save_sources', [ $this, 'handle_save_sources' ] );
+        add_action( 'manage_edit-' . CPT::POST_TYPE . '_extra_tablenav', [ $this, 'render_digest_list_toolbar' ], 10, 1 );
+        add_action( 'admin_notices', [ $this, 'digest_list_admin_notices' ] );
     }
 
     public function register_menu(): void {
@@ -56,7 +58,13 @@ final class Admin {
         $dry = isset( $_POST['dry_run'] );
         $res = Plugin::instance()->run_pipeline( $dry );
         set_transient( 'tm_news_last_run', $res, 600 );
-        wp_safe_redirect( admin_url( 'tools.php?page=' . self::PAGE_SLUG . '&ran=1' ) );
+        $redirect = isset( $_POST['tm_news_redirect'] ) ? sanitize_key( wp_unslash( $_POST['tm_news_redirect'] ) ) : '';
+        if ( $redirect === 'digest' ) {
+            $url = admin_url( 'edit.php?post_type=' . rawurlencode( CPT::POST_TYPE ) . '&ran=1' );
+        } else {
+            $url = admin_url( 'tools.php?page=' . self::PAGE_SLUG . '&ran=1' );
+        }
+        wp_safe_redirect( $url );
         exit;
     }
 
@@ -96,6 +104,75 @@ final class Admin {
         exit;
     }
 
+    /**
+     * Кнопка полного прогона пайплайна на экране списка дайджеста (CPT).
+     */
+    public function render_digest_list_toolbar( string $which ): void {
+        if ( $which !== 'top' || ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+        ?>
+        <div class="alignleft actions tm-news-digest-actions" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0;">
+                <input type="hidden" name="action" value="tm_news_run_now" />
+                <input type="hidden" name="tm_news_redirect" value="digest" />
+                <?php wp_nonce_field( 'tm_news_run_now' ); ?>
+                <?php
+                submit_button(
+                    __( 'Сгенерировать новости', 'tm-news' ),
+                    'primary',
+                    'tm_news_generate_digest',
+                    false,
+                    [ 'id' => 'tm-news-generate-from-digest' ]
+                );
+                ?>
+            </form>
+            <span class="description"><?php esc_html_e( 'Забирает RSS, кластеризует, считает score и создаёт черновики (как «Запустить пайплайн сейчас» без dry-run).', 'tm-news' ); ?></span>
+        </div>
+        <?php
+    }
+
+    /**
+     * Результат последнего запуска с экрана дайджеста.
+     */
+    public function digest_list_admin_notices(): void {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( ! $screen || $screen->id !== 'edit-' . CPT::POST_TYPE || empty( $_GET['ran'] ) ) {
+            return;
+        }
+        $last_run = get_transient( 'tm_news_last_run' );
+        if ( ! is_array( $last_run ) ) {
+            return;
+        }
+        $this->render_pipeline_result_notice( $last_run );
+    }
+
+    /**
+     * @param array<string,mixed> $last_run
+     */
+    private function render_pipeline_result_notice( array $last_run ): void {
+        ?>
+        <div class="notice notice-info is-dismissible">
+            <p><strong><?php esc_html_e( 'Запуск завершён.', 'tm-news' ); ?></strong>
+                fetched: <?php echo (int) $last_run['fetched']; ?> |
+                clustered: <?php echo (int) $last_run['clustered']; ?> |
+                scored: <?php echo (int) $last_run['scored']; ?> |
+                <?php
+                $created = ( is_array( $last_run['publish'] ?? null ) && ! empty( $last_run['publish']['created'] ) )
+                    ? $last_run['publish']['created']
+                    : null;
+                if ( is_array( $created ) ) {
+                    echo esc_html( sprintf( /* translators: %d: number of drafts */ __( 'создано %d', 'tm-news' ), count( $created ) ) );
+                }
+                ?>
+            </p>
+            <?php if ( ! empty( $last_run['error'] ) ) : ?>
+                <p style="color:#b32d2e;"><strong><?php esc_html_e( 'Ошибка:', 'tm-news' ); ?></strong> <?php echo esc_html( (string) $last_run['error'] ); ?></p>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
     public function render_page(): void {
         if ( ! current_user_can( 'manage_options' ) ) {
             return;
@@ -116,21 +193,7 @@ final class Admin {
                 <div class="notice notice-success is-dismissible"><p>Источники сохранены.</p></div>
             <?php endif; ?>
             <?php if ( ! empty( $_GET['ran'] ) && is_array( $last_run ) ) : ?>
-                <div class="notice notice-info is-dismissible">
-                    <p><strong>Запуск завершён.</strong>
-                        fetched: <?php echo (int) $last_run['fetched']; ?> |
-                        clustered: <?php echo (int) $last_run['clustered']; ?> |
-                        scored: <?php echo (int) $last_run['scored']; ?> |
-                        <?php
-                        if ( ! empty( $last_run['publish']['created'] ) ) {
-                            echo 'создано ' . count( $last_run['publish']['created'] );
-                        }
-                        ?>
-                    </p>
-                    <?php if ( ! empty( $last_run['error'] ) ) : ?>
-                        <p style="color:#b32d2e;">Ошибка: <?php echo esc_html( $last_run['error'] ); ?></p>
-                    <?php endif; ?>
-                </div>
+                <?php $this->render_pipeline_result_notice( $last_run ); ?>
             <?php endif; ?>
 
             <h2>1. Настройки LLM и планировщика</h2>
