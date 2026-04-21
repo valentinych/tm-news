@@ -49,7 +49,6 @@ final class Admin {
             Translator_OpenAI::OPTION_KEY,
             Translator_OpenAI::OPTION_MODEL,
             Scorer::OPTION_TAU,
-            Scorer::OPTION_KEYS,
             Publisher::OPTION_TOPK,
             Publisher::OPTION_MIN_SCORE,
             Publisher::OPTION_AUTOPUBLISH,
@@ -58,6 +57,15 @@ final class Admin {
         foreach ( $opts as $o ) {
             register_setting( self::OPTION_GROUP, $o );
         }
+
+        // Для topic-ключей textarea присылает строку «слово\nслово\n…»;
+        // без sanitize_callback WP сохранит её как строку, а Scorer::keywords()
+        // ждёт массив — из-за этого до 0.4.1 textarea «не работала».
+        register_setting( self::OPTION_GROUP, Scorer::OPTION_KEYS, [
+            'type'              => 'array',
+            'sanitize_callback' => [ Scorer::class, 'normalize_keywords' ],
+            'default'           => [],
+        ] );
     }
 
     public function handle_run_now(): void {

@@ -121,11 +121,40 @@ final class Scorer {
     }
 
     public static function keywords(): array {
-        $stored = get_option( self::OPTION_KEYS );
-        if ( is_array( $stored ) && $stored ) {
-            return $stored;
+        $stored     = get_option( self::OPTION_KEYS );
+        $normalized = self::normalize_keywords( $stored );
+        return $normalized !== [] ? $normalized : self::default_keywords();
+    }
+
+    /**
+     * Приводит значение опции tm_news_topic_keywords к списку ключей.
+     *
+     * Принимает массив (как сохранит починенный register_setting) или строку
+     * (как раньше сохраняла textarea, где каждое слово с новой строки).
+     * Trim, lower-case, убираем пустые и дубликаты.
+     *
+     * @param mixed $raw
+     * @return string[]
+     */
+    public static function normalize_keywords( $raw ): array {
+        if ( is_string( $raw ) ) {
+            $raw = preg_split( '/\r\n|\r|\n/', $raw ) ?: [];
         }
-        return self::default_keywords();
+        if ( ! is_array( $raw ) ) {
+            return [];
+        }
+        $out = [];
+        foreach ( $raw as $item ) {
+            if ( ! is_scalar( $item ) ) {
+                continue;
+            }
+            $v = trim( (string) $item );
+            if ( $v === '' ) {
+                continue;
+            }
+            $out[] = mb_strtolower( $v );
+        }
+        return array_values( array_unique( $out ) );
     }
 
     public static function tau_hours(): float {
