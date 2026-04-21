@@ -39,6 +39,33 @@ final class Scorer {
         return (float) ( is_numeric( $v ) ? $v : 6 );
     }
 
+    /**
+     * Оценка «горячести» одного айтема по той же формуле, что даёт вклад
+     * в score кластера: weight × exp(-age/τ) × topic_match.
+     *
+     * Возвращает число в диапазоне [0, 1]. Умножайте на 100 для UI-бейджа.
+     *
+     * @param array<string,mixed> $item         Row с полями source_key, title, excerpt, pub_ts.
+     * @param array<string,array<string,mixed>> $sources     Sources::all().
+     * @param string[]            $keywords_lc  Уже приведённые к lower-case keywords.
+     * @param float               $tau_seconds  τ в секундах.
+     */
+    public static function score_item( array $item, array $sources, array $keywords_lc, float $tau_seconds, int $now ): float {
+        $src   = $sources[ $item['source_key'] ?? '' ] ?? null;
+        $w     = $src ? (float) ( $src['weight'] ?? 0.5 ) : 0.5;
+        $age   = max( 0, $now - (int) ( $item['pub_ts'] ?? 0 ) );
+        $rec   = $tau_seconds > 0 ? exp( -$age / $tau_seconds ) : 0.0;
+        $text  = mb_strtolower( (string) ( $item['title'] ?? '' ) . ' ' . (string) ( $item['excerpt'] ?? '' ) );
+        $match = 0.3;
+        foreach ( $keywords_lc as $k ) {
+            if ( $k !== '' && str_contains( $text, $k ) ) {
+                $match = 1.0;
+                break;
+            }
+        }
+        return $w * $rec * $match;
+    }
+
     public static function score_all(): int {
         global $wpdb;
         $items_t = Installer::items_table();

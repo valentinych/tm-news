@@ -413,10 +413,12 @@ final class Admin {
             <?php endif; ?>
 
             <div class="tm-news-stats" style="display:flex;flex-wrap:wrap;gap:12px;margin:1em 0;">
-                <?php foreach ( $stats as $label => $value ) : ?>
+                <?php foreach ( $stats as $label => $cell ) : ?>
                     <div style="background:#fff;border:1px solid #ccd0d4;padding:10px 14px;min-width:140px;">
                         <div style="font-size:11px;text-transform:uppercase;color:#666;"><?php echo esc_html( $label ); ?></div>
-                        <div style="font-size:20px;font-weight:600;"><?php echo esc_html( (string) $value ); ?></div>
+                        <div style="font-size:20px;font-weight:600;">
+                            <?php echo isset( $cell['html'] ) ? $cell['html'] : esc_html( (string) $cell['value'] ); ?>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -483,33 +485,59 @@ final class Admin {
     }
 
     /**
-     * @return array<string,int|string>
+     * @return array<string,array{value:string,html?:string}>
      */
     private function collect_items_stats(): array {
         global $wpdb;
         $items_t = Installer::items_table();
         $clust_t = Installer::clusters_table();
 
-        $now    = time();
-        $day    = $now - 86400;
+        $now = time();
+        $day = $now - 86400;
 
-        $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
-        $last_24h    = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$items_t} WHERE fetched_ts >= %d", $day ) );
-        $clustered   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t} WHERE cluster_id IS NOT NULL" );
-        $free        = max( 0, $total - $clustered );
-        $drafted     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clust_t} WHERE post_id IS NOT NULL" );
-        $sources_on  = count( Sources::enabled() );
-        $last_fetch  = (int) $wpdb->get_var( "SELECT MAX(fetched_ts) FROM {$items_t}" );
-        $last_label  = $last_fetch > 0 ? wp_date( 'Y-m-d H:i', $last_fetch ) : '—';
+        $total      = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
+        $last_24h   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$items_t} WHERE fetched_ts >= %d", $day ) );
+        $clustered  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t} WHERE cluster_id IS NOT NULL" );
+        $drafted    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clust_t} WHERE post_id IS NOT NULL" );
+        $sources_on = count( Sources::enabled() );
+        $last_fetch = (int) $wpdb->get_var( "SELECT MAX(fetched_ts) FROM {$items_t}" );
+        $last_label = $last_fetch > 0 ? wp_date( 'Y-m-d H:i', $last_fetch ) : '—';
+
+        // Score-агрегаты. Ограничиваем 5000 строк, чтобы не сжечь память на больших базах —
+        // если когда-нибудь упрёмся, перенесём score в колонку БД.
+        $score_rows = $wpdb->get_results(
+            "SELECT source_key, title, excerpt, pub_ts FROM {$items_t} ORDER BY fetched_ts DESC LIMIT 5000",
+            ARRAY_A
+        );
+        $score_rows = Items_Table::annotate_score( $score_rows );
+        $avg = 0;
+        $max = 0;
+        $hot = 0;
+        if ( $score_rows ) {
+            $sum = 0;
+            foreach ( $score_rows as $r ) {
+                $s    = (int) $r['score_100'];
+                $sum += $s;
+                if ( $s > $max ) {
+                    $max = $s;
+                }
+                if ( $s >= 70 ) {
+                    $hot++;
+                }
+            }
+            $avg = (int) round( $sum / count( $score_rows ) );
+        }
 
         return [
-            __( 'Всего', 'tm-news' )                => $total,
-            __( 'За 24 часа', 'tm-news' )           => $last_24h,
-            __( 'В кластерах', 'tm-news' )          => $clustered,
-            __( 'Без кластера', 'tm-news' )         => $free,
-            __( 'Черновиков', 'tm-news' )           => $drafted,
-            __( 'Активных источников', 'tm-news' )  => $sources_on,
-            __( 'Последний fetch', 'tm-news' )      => $last_label,
+            __( 'Всего', 'tm-news' )               => [ 'value' => (string) $total ],
+            __( 'За 24 часа', 'tm-news' )          => [ 'value' => (string) $last_24h ],
+            __( 'Средний Score', 'tm-news' )       => [ 'value' => (string) $avg, 'html' => Items_Table::render_score_badge( $avg ) ],
+            __( 'Макс Score', 'tm-news' )          => [ 'value' => (string) $max, 'html' => Items_Table::render_score_badge( $max ) ],
+            __( 'Горячих (≥70)', 'tm-news' )       => [ 'value' => (string) $hot ],
+            __( 'В кластерах', 'tm-news' )         => [ 'value' => (string) $clustered ],
+            __( 'Черновиков', 'tm-news' )          => [ 'value' => (string) $drafted ],
+            __( 'Активных источников', 'tm-news' ) => [ 'value' => (string) $sources_on ],
+            __( 'Последний fetch', 'tm-news' )     => [ 'value' => $last_label ],
         ];
     }
 }

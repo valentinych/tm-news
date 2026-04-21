@@ -27,6 +27,7 @@ final class Items_Table extends \WP_List_Table {
     public function get_columns(): array {
         return [
             'cb'         => '<input type="checkbox" />',
+            'score'      => __( 'Score', 'tm-news' ),
             'title'      => __( 'Заголовок', 'tm-news' ),
             'source'     => __( 'Источник', 'tm-news' ),
             'pub_ts'     => __( 'Опубликовано', 'tm-news' ),
@@ -37,7 +38,8 @@ final class Items_Table extends \WP_List_Table {
 
     protected function get_sortable_columns(): array {
         return [
-            'pub_ts'     => [ 'pub_ts', true ],
+            'score'      => [ 'score', true ],
+            'pub_ts'     => [ 'pub_ts', false ],
             'fetched_ts' => [ 'fetched_ts', false ],
             'source'     => [ 'source_key', false ],
         ];
@@ -53,40 +55,69 @@ final class Items_Table extends \WP_List_Table {
         global $wpdb;
         $items_t = Installer::items_table();
 
-        $per_page = 25;
-        $paged    = max( 1, (int) ( $_REQUEST['paged'] ?? 1 ) );
-        $offset   = ( $paged - 1 ) * $per_page;
-
-        $orderby_map = [
-            'pub_ts'     => 'pub_ts',
-            'fetched_ts' => 'fetched_ts',
-            'source_key' => 'source_key',
-            'source'     => 'source_key',
-        ];
-        $orderby_in = (string) ( $_REQUEST['orderby'] ?? 'fetched_ts' );
-        $orderby    = $orderby_map[ $orderby_in ] ?? 'fetched_ts';
-        $order      = strtolower( (string) ( $_REQUEST['order'] ?? 'desc' ) ) === 'asc' ? 'ASC' : 'DESC';
+        $per_page   = 25;
+        $paged      = max( 1, (int) ( $_REQUEST['paged'] ?? 1 ) );
+        $offset     = ( $paged - 1 ) * $per_page;
+        $orderby_in = (string) ( $_REQUEST['orderby'] ?? 'score' );
+        $order_asc  = strtolower( (string) ( $_REQUEST['order'] ?? 'desc' ) ) === 'asc';
 
         $search = trim( (string) ( $_REQUEST['s'] ?? '' ) );
-        if ( $search !== '' ) {
-            $like        = '%' . $wpdb->esc_like( $search ) . '%';
-            $total       = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$items_t} WHERE title LIKE %s OR url LIKE %s",
-                $like, $like
-            ) );
-            $this->items = $wpdb->get_results( $wpdb->prepare(
-                "SELECT * FROM {$items_t}
-                 WHERE title LIKE %s OR url LIKE %s
-                 ORDER BY {$orderby} {$order}
-                 LIMIT %d OFFSET %d",
-                $like, $like, $per_page, $offset
-            ), ARRAY_A );
+        $like   = $search !== '' ? '%' . $wpdb->esc_like( $search ) . '%' : null;
+
+        if ( $orderby_in === 'score' ) {
+            // Score — вычислимое поле, сортировка делается в PHP по всему
+            // отфильтрованному набору, затем слайс под страницу.
+            if ( $like !== null ) {
+                $rows = $wpdb->get_results( $wpdb->prepare(
+                    "SELECT * FROM {$items_t}
+                     WHERE title LIKE %s OR url LIKE %s
+                     ORDER BY fetched_ts DESC
+                     LIMIT 5000",
+                    $like, $like
+                ), ARRAY_A );
+            } else {
+                $rows = $wpdb->get_results(
+                    "SELECT * FROM {$items_t} ORDER BY fetched_ts DESC LIMIT 5000",
+                    ARRAY_A
+                );
+            }
+            $rows = self::annotate_score( $rows );
+            usort( $rows, static function ( $a, $b ) use ( $order_asc ) {
+                $cmp = $a['score_100'] <=> $b['score_100'];
+                return $order_asc ? $cmp : -$cmp;
+            } );
+            $total       = count( $rows );
+            $this->items = array_slice( $rows, $offset, $per_page );
         } else {
-            $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
-            $this->items = $wpdb->get_results( $wpdb->prepare(
-                "SELECT * FROM {$items_t} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
-                $per_page, $offset
-            ), ARRAY_A );
+            $orderby_sql_map = [
+                'pub_ts'     => 'pub_ts',
+                'fetched_ts' => 'fetched_ts',
+                'source_key' => 'source_key',
+                'source'     => 'source_key',
+            ];
+            $orderby = $orderby_sql_map[ $orderby_in ] ?? 'fetched_ts';
+            $order   = $order_asc ? 'ASC' : 'DESC';
+
+            if ( $like !== null ) {
+                $total       = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$items_t} WHERE title LIKE %s OR url LIKE %s",
+                    $like, $like
+                ) );
+                $this->items = $wpdb->get_results( $wpdb->prepare(
+                    "SELECT * FROM {$items_t}
+                     WHERE title LIKE %s OR url LIKE %s
+                     ORDER BY {$orderby} {$order}
+                     LIMIT %d OFFSET %d",
+                    $like, $like, $per_page, $offset
+                ), ARRAY_A );
+            } else {
+                $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
+                $this->items = $wpdb->get_results( $wpdb->prepare(
+                    "SELECT * FROM {$items_t} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
+                    $per_page, $offset
+                ), ARRAY_A );
+            }
+            $this->items = self::annotate_score( $this->items );
         }
 
         $this->_column_headers = [ $this->get_columns(), [], $this->get_sortable_columns() ];
@@ -97,8 +128,47 @@ final class Items_Table extends \WP_List_Table {
         ] );
     }
 
+    /**
+     * Добавляет поле score_100 (int 0..100) к каждому row.
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    public static function annotate_score( array $rows ): array {
+        if ( ! $rows ) {
+            return $rows;
+        }
+        $sources  = Sources::all();
+        $kw_lc    = array_map( 'mb_strtolower', Scorer::keywords() );
+        $tau_s    = Scorer::tau_hours() * 3600.0;
+        $now      = time();
+        foreach ( $rows as &$r ) {
+            $r['score_100'] = (int) round( Scorer::score_item( $r, $sources, $kw_lc, $tau_s, $now ) * 100 );
+        }
+        unset( $r );
+        return $rows;
+    }
+
     public function column_cb( $item ): string {
         return sprintf( '<input type="checkbox" name="item_ids[]" value="%d" />', (int) $item['id'] );
+    }
+
+    public function column_score( $item ): string {
+        $s = max( 0, min( 100, (int) ( $item['score_100'] ?? 0 ) ) );
+        return self::render_score_badge( $s );
+    }
+
+    /**
+     * HSL от красного (0) через жёлтый (60) к зелёному (120) — hue = score * 1.2.
+     */
+    public static function render_score_badge( int $score ): string {
+        $score = max( 0, min( 100, $score ) );
+        $hue   = (int) round( $score * 1.2 );
+        $style = sprintf(
+            'background:hsl(%d,70%%,45%%);color:#fff;padding:2px 10px;border-radius:10px;font-weight:600;display:inline-block;min-width:34px;text-align:center;',
+            $hue
+        );
+        return sprintf( '<span style="%s">%d</span>', esc_attr( $style ), $score );
     }
 
     public function column_title( $item ): string {
@@ -144,7 +214,7 @@ final class Items_Table extends \WP_List_Table {
                 (int) $row['post_id']
             );
         }
-        return sprintf( esc_html__( 'в кластере #%d', 'tm-news' ), $cluster_id );
+        return sprintf( esc_html__( 'сгруппирован #%d', 'tm-news' ), $cluster_id );
     }
 
     public function column_default( $item, $column_name ): string {
