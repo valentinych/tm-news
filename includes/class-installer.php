@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Installer {
 
     private const DB_VERSION_OPTION = 'tm_news_db_version';
-    private const DB_VERSION        = '3';
+    private const DB_VERSION        = '4';
 
     public static function items_table(): string {
         global $wpdb;

@@ -17,13 +17,107 @@ final class Scorer {
     public const OPTION_TAU  = 'tm_news_recency_tau_hours';
 
     public static function default_keywords(): array {
-        return [
-            'gdansk','gdańsk','gdynia','sopot','trojmiasto','trójmiasto',
-            'pomorski','pomorskie','pomorze','westerplatte','oliwa','wrzeszcz','brzeźno','brzezno',
-            'orłowo','orlowo','kamienna góra','kamienna gora','mevo','pkm','skm','ztm',
-            'ecs','forum gdansk','stocznia','lotnisko rębiechowo','lotnisko rebiechowo',
-            'amber','ergo arena','polsat plus arena',
-        ];
+        // Ключи сравниваются `str_contains` по lowercased строке (title + excerpt).
+        // Поэтому:
+        //   - для часто встречающихся слов даём две формы: с диакритиками и без
+        //     (польские СМИ бывают в обеих), для редких — одну;
+        //   - словосочетания пишем с пробелом (ровно как они встречаются в заголовках).
+        return array_merge(
+            // --- Труймясто и три главных города
+            [ 'trojmiasto', 'trójmiasto', 'gdansk', 'gdańsk', 'gdynia', 'sopot' ],
+
+            // --- Метрополия: ближайшие города-сателлиты (Metropolia GGS + powiaty)
+            [
+                'pruszcz gdański', 'pruszcz gdanski',
+                'rumia', 'reda', 'wejherowo', 'puck',
+                'kartuzy', 'żukowo', 'zukowo', 'kosakowo',
+                'tczew', 'malbork', 'kwidzyn',
+                'starogard gdański', 'starogard gdanski',
+                'kościerzyna', 'koscierzyna',
+                'lębork', 'lebork',
+                'nowy dwór gdański', 'nowy dwor gdanski',
+                'hel', 'jastarnia', 'władysławowo', 'wladyslawowo', 'jurata',
+            ],
+
+            // --- Dzielnice Гданьска
+            [
+                'wrzeszcz', 'oliwa', 'brzeźno', 'brzezno',
+                'śródmieście', 'srodmiescie', 'stare miasto', 'główne miasto', 'glowne miasto',
+                'dolne miasto', 'nowy port', 'przymorze', 'zaspa',
+                'chełm', 'chelm', 'orunia', 'suchanino',
+                'wyspa sobieszewska', 'stogi', 'osowa', 'matarnia', 'kokoszki',
+                'ujeścisko', 'ujescisko', 'łostowice', 'lostowice',
+                'piecki-migowo', 'piecki', 'brętowo', 'bretowo',
+                'strzyża', 'strzyza', 'siedlce', 'aniołki', 'anioly',
+            ],
+
+            // --- Dzielnice Гдыни
+            [
+                'orłowo', 'orlowo', 'kamienna góra', 'kamienna gora',
+                'redłowo', 'redlowo', 'mały kack', 'maly kack', 'wielki kack',
+                'karwiny', 'dąbrowa', 'witomino',
+                'chylonia', 'obłuże', 'obluze', 'oksywie',
+                'pogórze', 'pogorze', 'cisowa', 'babie doły', 'babie doly',
+                'grabówek', 'grabowek', 'leszczynki',
+            ],
+
+            // --- Dzielnice Сопота
+            [
+                'kamienny potok', 'brodwino', 'świemirowo', 'swiemirowo',
+                'dolny sopot', 'górny sopot', 'gorny sopot',
+            ],
+
+            // --- Транспорт и инфраструктура
+            [
+                'pkm', 'skm', 'ztm', 'mevo',
+                'obwodnica trójmiasta', 'obwodnica trojmiasta',
+                'trasa sucharskiego', 'kolej metropolitalna',
+                'port gdańsk', 'port gdansk', 'port gdynia',
+                'baltic hub', 'dct gdańsk', 'dct gdansk',
+                'lotnisko gdańsk', 'lotnisko gdansk',
+                'lotnisko rębiechowo', 'lotnisko rebiechowo',
+            ],
+
+            // --- Знаковые места, бренды, арены
+            [
+                'westerplatte', 'ecs', 'stocznia',
+                'forum gdańsk', 'forum gdansk',
+                'długa', 'dluga', 'mariacka', 'neptun',
+                'żuraw', 'zuraw', 'motława', 'motlawa', 'radunia',
+                'martwa wisła', 'martwa wisla',
+                'monciak', 'monte cassino', 'molo sopot',
+                'galeria bałtycka', 'galeria baltycka', 'metropolia gdańsk', 'metropolia gdansk',
+                'amber expo', 'ergo arena', 'polsat plus arena',
+                'hala olivia', 'miiws', 'muzeum ii wojny',
+            ],
+
+            // --- Образование и культура Труймяста
+            [
+                'uniwersytet gdański', 'uniwersytet gdanski',
+                'politechnika gdańska', 'politechnika gdanska',
+                'gumed', 'amw gdynia',
+                'teatr wybrzeże', 'teatr wybrzeze',
+                'opera bałtycka', 'opera baltycka',
+                'filharmonia bałtycka', 'filharmonia baltycka',
+            ],
+
+            // --- Футбольные клубы / спорт (частая тема в заголовках)
+            [
+                'lechia gdańsk', 'lechia gdansk',
+                'arka gdynia',
+                'trefl gdańsk', 'trefl gdansk', 'trefl sopot',
+                'wybrzeże gdańsk', 'wybrzeze gdansk',
+            ],
+
+            // --- Регион: Поморское воев., Кашубы, Жулавы, география
+            [
+                'pomorski', 'pomorska', 'pomorskie', 'pomorze',
+                'kaszuby', 'kaszubski', 'kaszubska',
+                'żuławy', 'zulawy',
+                'zatoka gdańska', 'zatoka gdanska',
+                'mierzeja',
+            ]
+        );
     }
 
     public static function keywords(): array {

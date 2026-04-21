@@ -143,6 +143,30 @@ final class Sources {
                 'weight'  => 0.3,
                 'enabled' => false,
             ],
+            'newsweek_pl' => [
+                'name'    => 'Newsweek Polska',
+                'url'     => 'https://www.newsweek.pl/.feed',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'business_insider_pl' => [
+                'name'    => 'Business Insider Polska',
+                'url'     => 'https://businessinsider.com.pl/.feed',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'bankier' => [
+                'name'    => 'Bankier.pl',
+                'url'     => 'https://www.bankier.pl/rss/wiadomosci.xml',
+                'weight'  => 0.3,
+                'enabled' => false,
+            ],
+            'do_rzeczy' => [
+                'name'    => 'DoRzeczy',
+                'url'     => 'https://dorzeczy.pl/feed',
+                'weight'  => 0.3,
+                'enabled' => false,
+            ],
         ];
     }
 
