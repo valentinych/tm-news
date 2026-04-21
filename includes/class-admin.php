@@ -430,6 +430,8 @@ final class Admin {
                 <span class="description"><?php esc_html_e( 'RSS всех включённых источников, новые айтемы попадают в таблицу.', 'tm-news' ); ?></span>
             </form>
 
+            <?php $this->render_score_explainer(); ?>
+
             <form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>">
                 <input type="hidden" name="post_type" value="<?php echo esc_attr( CPT::POST_TYPE ); ?>" />
                 <input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG_ITEMS ); ?>" />
@@ -501,6 +503,82 @@ final class Admin {
      *
      * @return array{created:int,errors:int,messages:string[]}|null
      */
+    /**
+     * Сворачиваемый блок с объяснением формулы Score над таблицей.
+     * Подставляет живые значения τ и список topic-ключей из Scorer,
+     * чтобы описание не расходилось с реальностью.
+     */
+    private function render_score_explainer(): void {
+        $tau_h    = Scorer::tau_hours();
+        $keywords = Scorer::keywords();
+        $kw_count = count( $keywords );
+        $kw_sample_arr = array_slice( $keywords, 0, 12 );
+        $kw_sample = implode( ', ', $kw_sample_arr );
+        if ( $kw_count > count( $kw_sample_arr ) ) {
+            $kw_sample .= ', …';
+        }
+
+        ?>
+        <details class="tm-news-score-explainer" style="margin:1em 0;background:#fff;border:1px solid #ccd0d4;padding:8px 14px;">
+            <summary style="cursor:pointer;font-weight:600;">
+                <?php esc_html_e( 'Как считается Score (0–100)', 'tm-news' ); ?>
+            </summary>
+            <div style="margin-top:10px;color:#1d2327;line-height:1.55;">
+                <p style="margin:0 0 8px;">
+                    <?php esc_html_e( 'Score показывает «горячесть» конкретной новости — насколько она свежая, из доверенного источника и релевантна теме Труймясто. Значение в таблице — это округлённый процент от 0 до 100.', 'tm-news' ); ?>
+                </p>
+
+                <p style="margin:0 0 6px;"><strong><?php esc_html_e( 'Формула:', 'tm-news' ); ?></strong></p>
+                <pre style="margin:0 0 10px;padding:8px 10px;background:#f6f7f7;border:1px solid #dcdcde;overflow:auto;">score = weight(источник) × recency × topic_match
+score_100 = round(score × 100)</pre>
+
+                <ul style="margin:0 0 8px 1.2em;list-style:disc;">
+                    <li>
+                        <strong>weight(источник)</strong> — «доверие» к источнику, число 0…1.
+                        <?php esc_html_e( 'Настраивается в полях', 'tm-news' ); ?>
+                        <code>Инструменты → News aggregator → Источники</code>.
+                        <?php esc_html_e( 'Пример: Trojmiasto.pl = 1.0, Radio Gdańsk = 0.9, общепольские мейнстрим-СМИ = 0.3–0.6.', 'tm-news' ); ?>
+                    </li>
+                    <li>
+                        <strong>recency</strong> = <code>exp(−age / τ)</code>,
+                        <?php echo wp_kses_post( sprintf(
+                            /* translators: %s: tau in hours */
+                            __( 'где <code>age</code> — возраст публикации в секундах, а <code>τ</code> = <strong>%s ч</strong> (настраивается в разделе News aggregator).', 'tm-news' ),
+                            esc_html( rtrim( rtrim( number_format( $tau_h, 2, '.', '' ), '0' ), '.' ) )
+                        ) ); ?>
+                        <?php esc_html_e( 'Новость «сегодня» ≈ 1.0, старая на τ часов ≈ 0.37, на 2τ ≈ 0.14.', 'tm-news' ); ?>
+                    </li>
+                    <li>
+                        <strong>topic_match</strong> =
+                        <code>1.0</code>,
+                        <?php esc_html_e( 'если в заголовке или анонсе найдено хотя бы одно ключевое слово, иначе', 'tm-news' ); ?>
+                        <code>0.3</code>.
+                        <?php echo wp_kses_post( sprintf(
+                            /* translators: 1: number of keywords, 2: comma-separated sample */
+                            __( 'Сейчас активно %1$d ключевых слов: <code>%2$s</code>.', 'tm-news' ),
+                            (int) $kw_count,
+                            esc_html( $kw_sample )
+                        ) ); ?>
+                    </li>
+                </ul>
+
+                <p style="margin:0 0 6px;"><strong><?php esc_html_e( 'Цвет бейджа:', 'tm-news' ); ?></strong>
+                    <?php esc_html_e( 'градиент HSL от красного (0) к зелёному (100).', 'tm-news' ); ?>
+                </p>
+
+                <p style="margin:0 0 6px;"><strong><?php esc_html_e( 'Примеры:', 'tm-news' ); ?></strong></p>
+                <ul style="margin:0 0 0 1.2em;list-style:disc;">
+                    <li><?php esc_html_e( 'Свежая новость про Гданьск из Trojmiasto.pl:', 'tm-news' ); ?> <code>1.0 × ≈1.0 × 1.0 ≈ 1.00 → 100</code>.</li>
+                    <li><?php echo wp_kses_post( sprintf( __( 'Новость возрастом %s ч из Radio Gdańsk без матча по ключам:', 'tm-news' ), esc_html( rtrim( rtrim( number_format( $tau_h, 2, '.', '' ), '0' ), '.' ) ) ) ); ?>
+                        <code>0.9 × 0.37 × 0.3 ≈ 0.10 → 10</code>.
+                    </li>
+                    <li><?php esc_html_e( 'Общепольский заголовок без упоминания Труймяста умножится на 0.3 и почти наверняка не попадёт в топ — это задумано.', 'tm-news' ); ?></li>
+                </ul>
+            </div>
+        </details>
+        <?php
+    }
+
     private function maybe_process_make_draft_bulk(): ?array {
         $action = (string) ( $_REQUEST['action'] ?? '' );
         if ( $action === '' || $action === '-1' ) {

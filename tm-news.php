@@ -3,7 +3,7 @@
  * Plugin Name: Trojmiasto News Aggregator
  * Plugin URI:  https://github.com/valentinych/tm-news
  * Description: Собирает свежие новости из польских источников по Труймясту, кластеризует их и с помощью LLM готовит короткие рерайты на русский и украинский. Создаёт черновики в CPT tm_news_digest для ручной публикации.
- * Version:     0.3.1
+ * Version:     0.3.2
  * Author:      trojmiasto.online
  * License:     MIT
  * Text Domain: tm-news
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'TM_NEWS_VERSION', '0.3.1' );
+define( 'TM_NEWS_VERSION', '0.3.2' );
 define( 'TM_NEWS_PLUGIN_FILE', __FILE__ );
 define( 'TM_NEWS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TM_NEWS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
