@@ -433,6 +433,53 @@ final class Admin {
             <form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>">
                 <input type="hidden" name="post_type" value="<?php echo esc_attr( CPT::POST_TYPE ); ?>" />
                 <input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG_ITEMS ); ?>" />
+
+                <?php
+                $sources_all      = Sources::all();
+                $selected_sources = Items_Table::parse_sources_filter();
+                $date_from_in     = (string) ( $_REQUEST['date_from'] ?? '' );
+                $date_to_in       = (string) ( $_REQUEST['date_to'] ?? '' );
+                $reset_url        = add_query_arg( [
+                    'post_type' => CPT::POST_TYPE,
+                    'page'      => self::PAGE_SLUG_ITEMS,
+                ], admin_url( 'edit.php' ) );
+                ?>
+                <div class="tm-news-filters" style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;margin:12px 0;padding:12px 14px;background:#fff;border:1px solid #ccd0d4;">
+                    <div style="flex:1 1 320px;min-width:260px;">
+                        <div style="font-size:11px;text-transform:uppercase;color:#666;margin-bottom:4px;">
+                            <?php esc_html_e( 'Источники', 'tm-news' ); ?>
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px 14px;">
+                            <?php foreach ( $sources_all as $key => $src ) :
+                                $checked = in_array( (string) $key, $selected_sources, true );
+                                $name    = (string) ( $src['name'] ?? $key );
+                                ?>
+                                <label style="white-space:nowrap;">
+                                    <input type="checkbox" name="source[]" value="<?php echo esc_attr( $key ); ?>" <?php checked( $checked ); ?> />
+                                    <?php echo esc_html( $name ); ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;text-transform:uppercase;color:#666;margin-bottom:4px;">
+                            <?php esc_html_e( 'Опубликовано', 'tm-news' ); ?>
+                        </div>
+                        <label style="margin-right:6px;">
+                            <?php esc_html_e( 'с', 'tm-news' ); ?>
+                            <input type="date" name="date_from" value="<?php echo esc_attr( $date_from_in ); ?>" />
+                        </label>
+                        <label>
+                            <?php esc_html_e( 'по', 'tm-news' ); ?>
+                            <input type="date" name="date_to" value="<?php echo esc_attr( $date_to_in ); ?>" />
+                        </label>
+                    </div>
+                    <div>
+                        <button type="submit" class="button button-secondary"><?php esc_html_e( 'Применить фильтры', 'tm-news' ); ?></button>
+                        <a href="<?php echo esc_url( $reset_url ); ?>" class="button"><?php esc_html_e( 'Сброс', 'tm-news' ); ?></a>
+                    </div>
+                </div>
+
                 <?php $table->search_box( __( 'Поиск', 'tm-news' ), 'tm-news-item' ); ?>
                 <?php $table->display(); ?>
             </form>

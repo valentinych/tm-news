@@ -29,6 +29,7 @@ final class Items_Table extends \WP_List_Table {
             'cb'         => '<input type="checkbox" />',
             'score'      => __( 'Score', 'tm-news' ),
             'title'      => __( 'Заголовок', 'tm-news' ),
+            'tags'       => __( 'Теги', 'tm-news' ),
             'source'     => __( 'Источник', 'tm-news' ),
             'pub_ts'     => __( 'Опубликовано', 'tm-news' ),
             'fetched_ts' => __( 'Забрано', 'tm-news' ),
@@ -61,26 +62,16 @@ final class Items_Table extends \WP_List_Table {
         $orderby_in = (string) ( $_REQUEST['orderby'] ?? 'score' );
         $order_asc  = strtolower( (string) ( $_REQUEST['order'] ?? 'desc' ) ) === 'asc';
 
-        $search = trim( (string) ( $_REQUEST['s'] ?? '' ) );
-        $like   = $search !== '' ? '%' . $wpdb->esc_like( $search ) . '%' : null;
+        [ $where, $args ] = $this->build_filters_where();
 
         if ( $orderby_in === 'score' ) {
-            // Score — вычислимое поле, сортировка делается в PHP по всему
-            // отфильтрованному набору, затем слайс под страницу.
-            if ( $like !== null ) {
-                $rows = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT * FROM {$items_t}
-                     WHERE title LIKE %s OR url LIKE %s
-                     ORDER BY fetched_ts DESC
-                     LIMIT 5000",
-                    $like, $like
-                ), ARRAY_A );
-            } else {
-                $rows = $wpdb->get_results(
-                    "SELECT * FROM {$items_t} ORDER BY fetched_ts DESC LIMIT 5000",
-                    ARRAY_A
-                );
-            }
+            // Score — вычислимое поле, сортировка делается в PHP по всей
+            // отфильтрованной выборке, затем слайс под страницу.
+            $sql  = "SELECT * FROM {$items_t} WHERE {$where} ORDER BY fetched_ts DESC LIMIT 5000";
+            $rows = $args
+                ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A )
+                : $wpdb->get_results( $sql, ARRAY_A );
+
             $rows = self::annotate_score( $rows );
             usort( $rows, static function ( $a, $b ) use ( $order_asc ) {
                 $cmp = $a['score_100'] <=> $b['score_100'];
@@ -98,25 +89,16 @@ final class Items_Table extends \WP_List_Table {
             $orderby = $orderby_sql_map[ $orderby_in ] ?? 'fetched_ts';
             $order   = $order_asc ? 'ASC' : 'DESC';
 
-            if ( $like !== null ) {
-                $total       = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$items_t} WHERE title LIKE %s OR url LIKE %s",
-                    $like, $like
-                ) );
-                $this->items = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT * FROM {$items_t}
-                     WHERE title LIKE %s OR url LIKE %s
-                     ORDER BY {$orderby} {$order}
-                     LIMIT %d OFFSET %d",
-                    $like, $like, $per_page, $offset
-                ), ARRAY_A );
-            } else {
-                $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
-                $this->items = $wpdb->get_results( $wpdb->prepare(
-                    "SELECT * FROM {$items_t} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
-                    $per_page, $offset
-                ), ARRAY_A );
-            }
+            $count_sql = "SELECT COUNT(*) FROM {$items_t} WHERE {$where}";
+            $total     = (int) ( $args
+                ? $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) )
+                : $wpdb->get_var( $count_sql ) );
+
+            $page_sql = "SELECT * FROM {$items_t} WHERE {$where} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+            $this->items = $wpdb->get_results( $wpdb->prepare(
+                $page_sql,
+                array_merge( $args, [ $per_page, $offset ] )
+            ), ARRAY_A );
             $this->items = self::annotate_score( $this->items );
         }
 
@@ -126,6 +108,96 @@ final class Items_Table extends \WP_List_Table {
             'per_page'    => $per_page,
             'total_pages' => (int) ceil( $total / max( 1, $per_page ) ),
         ] );
+    }
+
+    /**
+     * Собирает кусок WHERE и позиционные аргументы для wpdb->prepare()
+     * из $_REQUEST: s, source[], date_from, date_to.
+     *
+     * @return array{0:string,1:array<int,mixed>}
+     */
+    private function build_filters_where(): array {
+        global $wpdb;
+        $parts = [];
+        $args  = [];
+
+        $search = trim( (string) ( $_REQUEST['s'] ?? '' ) );
+        if ( $search !== '' ) {
+            $like    = '%' . $wpdb->esc_like( $search ) . '%';
+            $parts[] = '(title LIKE %s OR url LIKE %s)';
+            $args[]  = $like;
+            $args[]  = $like;
+        }
+
+        $sources = self::parse_sources_filter();
+        if ( $sources ) {
+            $ph      = implode( ',', array_fill( 0, count( $sources ), '%s' ) );
+            $parts[] = "source_key IN ({$ph})";
+            foreach ( $sources as $s ) {
+                $args[] = $s;
+            }
+        }
+
+        [ $from_ts, $to_ts ] = self::parse_date_range();
+        if ( $from_ts !== null ) {
+            $parts[] = 'pub_ts >= %d';
+            $args[]  = $from_ts;
+        }
+        if ( $to_ts !== null ) {
+            $parts[] = 'pub_ts < %d';
+            $args[]  = $to_ts;
+        }
+
+        return [ $parts ? implode( ' AND ', $parts ) : '1=1', $args ];
+    }
+
+    /**
+     * @return string[] Валидные ключи источников из $_REQUEST['source'].
+     */
+    public static function parse_sources_filter(): array {
+        $raw = $_REQUEST['source'] ?? [];
+        if ( is_string( $raw ) ) {
+            $raw = [ $raw ];
+        }
+        if ( ! is_array( $raw ) ) {
+            return [];
+        }
+        $known = array_keys( Sources::all() );
+        $out   = [];
+        foreach ( $raw as $s ) {
+            $s = sanitize_key( (string) $s );
+            if ( $s !== '' && in_array( $s, $known, true ) ) {
+                $out[] = $s;
+            }
+        }
+        return array_values( array_unique( $out ) );
+    }
+
+    /**
+     * @return array{0:?int,1:?int} from_ts (≥), to_ts (<). Оба опциональны.
+     */
+    public static function parse_date_range(): array {
+        $tz = wp_timezone();
+        $from_ts = null;
+        $to_ts   = null;
+        $from_in = trim( (string) ( $_REQUEST['date_from'] ?? '' ) );
+        $to_in   = trim( (string) ( $_REQUEST['date_to'] ?? '' ) );
+        if ( $from_in !== '' ) {
+            try {
+                $from_ts = ( new \DateTimeImmutable( $from_in . ' 00:00:00', $tz ) )->getTimestamp();
+            } catch ( \Throwable $e ) {
+                $from_ts = null;
+            }
+        }
+        if ( $to_in !== '' ) {
+            try {
+                // Верхняя граница включительно по дню: < следующий день 00:00.
+                $to_ts = ( new \DateTimeImmutable( $to_in . ' 00:00:00', $tz ) )->modify( '+1 day' )->getTimestamp();
+            } catch ( \Throwable $e ) {
+                $to_ts = null;
+            }
+        }
+        return [ $from_ts, $to_ts ];
     }
 
     /**
@@ -177,6 +249,19 @@ final class Items_Table extends \WP_List_Table {
             esc_url( (string) $item['url'] ),
             esc_html( (string) $item['title'] )
         );
+    }
+
+    public function column_tags( $item ): string {
+        $tags = Tagger::detect( (string) ( $item['title'] ?? '' ), (string) ( $item['excerpt'] ?? '' ) );
+        if ( ! $tags ) {
+            return '<span style="color:#999;">—</span>';
+        }
+        $style = 'display:inline-block;background:#f0f0f1;color:#2c3338;border:1px solid #dcdcde;padding:1px 7px;border-radius:10px;font-size:11px;margin:0 3px 3px 0;';
+        $out   = '';
+        foreach ( $tags as $t ) {
+            $out .= sprintf( '<span style="%s">%s</span>', esc_attr( $style ), esc_html( $t ) );
+        }
+        return $out;
     }
 
     public function column_source( $item ): string {
