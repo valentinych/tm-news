@@ -154,6 +154,114 @@ final class Publisher {
         ];
     }
 
+    /**
+     * Принудительно сделать черновик из одного item (в обход логики score/top-K).
+     * Вызывается со страницы «Забранные новости» через bulk action.
+     *
+     * Защита от дубля: если по tm_news_source_url уже есть пост — возвращаем
+     * ok=false с ссылкой на существующий черновик.
+     */
+    public static function publish_item( int $item_id, bool $dry_run = false ): array {
+        global $wpdb;
+        $items_t = Installer::items_table();
+        $clust_t = Installer::clusters_table();
+
+        $item = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, source_key, url, title, excerpt, cluster_id FROM {$items_t} WHERE id = %d",
+            $item_id
+        ), ARRAY_A );
+        if ( ! $item ) {
+            return [ 'ok' => false, 'err' => 'item not found' ];
+        }
+
+        $translator = Translator_OpenAI::from_options() ?? new Translator_Null();
+        $is_null    = $translator instanceof Translator_Null;
+        if ( $is_null && ! $dry_run ) {
+            return [ 'ok' => false, 'err' => 'OpenAI API key is not configured' ];
+        }
+
+        $dup = get_posts( [
+            'post_type'      => CPT::POST_TYPE,
+            'post_status'    => 'any',
+            'meta_key'       => 'tm_news_source_url',
+            'meta_value'     => (string) $item['url'],
+            'fields'         => 'ids',
+            'posts_per_page' => 1,
+            'no_found_rows'  => true,
+        ] );
+        if ( ! empty( $dup ) ) {
+            return [ 'ok' => false, 'err' => 'draft already exists for this URL', 'post_id' => (int) $dup[0] ];
+        }
+
+        $cluster_id = (int) ( $item['cluster_id'] ?? 0 );
+        $also       = [];
+        if ( $cluster_id ) {
+            $also = $wpdb->get_results( $wpdb->prepare(
+                "SELECT source_key, url, title FROM {$items_t}
+                 WHERE cluster_id = %d AND id != %d
+                 ORDER BY pub_ts ASC
+                 LIMIT 6",
+                $cluster_id, $item_id
+            ), ARRAY_A ) ?: [];
+        }
+
+        try {
+            $rewrite = $translator->rewrite(
+                (string) $item['title'],
+                (string) ( $item['excerpt'] ?? '' ),
+                (string) $item['url']
+            );
+        } catch ( \Throwable $e ) {
+            Logger::error( 'translator failed (item)', [ 'item' => $item_id, 'err' => $e->getMessage() ] );
+            return [ 'ok' => false, 'err' => $e->getMessage() ];
+        }
+
+        if ( $dry_run ) {
+            return [ 'ok' => true, 'dry_run' => true, 'title' => $rewrite['title_ru'] ];
+        }
+
+        $auto     = (bool) get_option( self::OPTION_AUTOPUBLISH, 0 );
+        $cat_id   = (int) get_option( self::OPTION_CATEGORY_ID, 0 );
+        $sources  = Sources::all();
+        $src_meta = $sources[ $item['source_key'] ] ?? [ 'name' => $item['source_key'] ];
+        $body     = self::render_body( $rewrite, $item, $also, (string) $src_meta['name'] );
+
+        $postarr = [
+            'post_type'    => CPT::POST_TYPE,
+            'post_status'  => $auto ? 'publish' : 'draft',
+            'post_title'   => $rewrite['title_ru'],
+            'post_excerpt' => $rewrite['summary_ru'],
+            'post_content' => $body,
+            'meta_input'   => [
+                'tm_news_source_name' => (string) $src_meta['name'],
+                'tm_news_source_url'  => (string) $item['url'],
+                'tm_news_orig_title'  => (string) $item['title'],
+                'tm_news_summary_ru'  => $rewrite['summary_ru'],
+                'tm_news_summary_uk'  => $rewrite['summary_uk'],
+                'tm_news_cluster_id'  => $cluster_id,
+            ],
+        ];
+        if ( $cat_id > 0 ) {
+            $postarr['post_category'] = [ $cat_id ];
+        }
+
+        $post_id = wp_insert_post( $postarr, true );
+        if ( is_wp_error( $post_id ) ) {
+            Logger::error( 'wp_insert_post failed (item)', [ 'item' => $item_id, 'err' => $post_id->get_error_message() ] );
+            return [ 'ok' => false, 'err' => $post_id->get_error_message() ];
+        }
+
+        if ( $cluster_id ) {
+            $wpdb->update( $clust_t, [
+                'status'  => $auto ? 'published' : 'drafted',
+                'post_id' => (int) $post_id,
+            ], [ 'id' => $cluster_id ], [ '%s', '%d' ], [ '%d' ] );
+        }
+
+        Logger::info( 'post created from item', [ 'item' => $item_id, 'post_id' => $post_id ] );
+        return [ 'ok' => true, 'post_id' => (int) $post_id, 'title' => $rewrite['title_ru'] ];
+    }
+
     private static function render_body( array $rewrite, array $canonical, array $also, string $source_name ): string {
         $src_url   = esc_url( (string) $canonical['url'] );
         $src_label = esc_html( $source_name );

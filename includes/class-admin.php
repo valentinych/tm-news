@@ -11,8 +11,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class Admin {
 
-    private const PAGE_SLUG    = 'tm-news';
-    private const OPTION_GROUP = 'tm_news_settings';
+    private const PAGE_SLUG        = 'tm-news';
+    private const PAGE_SLUG_ITEMS  = 'tm-news-fetched';
+    private const OPTION_GROUP     = 'tm_news_settings';
 
     public function boot(): void {
         add_action( 'admin_menu', [ $this, 'register_menu' ] );
@@ -20,6 +21,7 @@ final class Admin {
         add_action( 'admin_post_tm_news_run_now',     [ $this, 'handle_run_now' ] );
         add_action( 'admin_post_tm_news_clear_log',   [ $this, 'handle_clear_log' ] );
         add_action( 'admin_post_tm_news_save_sources', [ $this, 'handle_save_sources' ] );
+        add_action( 'admin_post_tm_news_fetch_items', [ $this, 'handle_fetch_items' ] );
         add_action( 'admin_notices', [ $this, 'render_digest_list_toolbar' ] );
         add_action( 'admin_notices', [ $this, 'digest_list_admin_notices' ] );
     }
@@ -31,6 +33,14 @@ final class Admin {
             'manage_options',
             self::PAGE_SLUG,
             [ $this, 'render_page' ]
+        );
+        add_submenu_page(
+            'edit.php?post_type=' . CPT::POST_TYPE,
+            __( 'Забранные новости', 'tm-news' ),
+            __( 'Забранные', 'tm-news' ),
+            'manage_options',
+            self::PAGE_SLUG_ITEMS,
+            [ $this, 'render_items_page' ]
         );
     }
 
@@ -65,6 +75,20 @@ final class Admin {
             $url = admin_url( 'tools.php?page=' . self::PAGE_SLUG . '&ran=1' );
         }
         wp_safe_redirect( $url );
+        exit;
+    }
+
+    public function handle_fetch_items(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'nope' );
+        }
+        check_admin_referer( 'tm_news_fetch_items' );
+        $n = Fetcher::fetch_all();
+        wp_safe_redirect( add_query_arg( [
+            'post_type' => CPT::POST_TYPE,
+            'page'      => self::PAGE_SLUG_ITEMS,
+            'fetched'   => $n,
+        ], admin_url( 'edit.php' ) ) );
         exit;
     }
 
@@ -336,5 +360,156 @@ final class Admin {
             ?></pre>
         </div>
         <?php
+    }
+
+    /**
+     * Подстраница «Забранные новости»: список tm_news_items со статистикой,
+     * кнопкой ручного fetch и bulk-action принудительного черновика.
+     */
+    public function render_items_page(): void {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'nope' );
+        }
+
+        $bulk_result = $this->maybe_process_make_draft_bulk();
+
+        $table = new Items_Table();
+        $table->prepare_items();
+
+        $stats = $this->collect_items_stats();
+
+        $base_url = add_query_arg( [
+            'post_type' => CPT::POST_TYPE,
+            'page'      => self::PAGE_SLUG_ITEMS,
+        ], admin_url( 'edit.php' ) );
+
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php esc_html_e( 'Забранные новости', 'tm-news' ); ?></h1>
+            <hr class="wp-header-end" />
+
+            <?php if ( isset( $_GET['fetched'] ) ) : ?>
+                <div class="notice notice-success is-dismissible">
+                    <p><?php echo esc_html( sprintf( /* translators: %d: number of new items */ __( 'Забрано новых айтемов: %d', 'tm-news' ), (int) $_GET['fetched'] ) ); ?></p>
+                </div>
+            <?php endif; ?>
+
+            <?php if ( is_array( $bulk_result ) ) : ?>
+                <div class="notice notice-<?php echo $bulk_result['errors'] ? 'warning' : 'success'; ?> is-dismissible">
+                    <p>
+                        <?php echo esc_html( sprintf( __( 'Создано черновиков: %d', 'tm-news' ), $bulk_result['created'] ) ); ?>
+                        <?php if ( $bulk_result['errors'] ) : ?>
+                            · <?php echo esc_html( sprintf( __( 'ошибок: %d', 'tm-news' ), $bulk_result['errors'] ) ); ?>
+                        <?php endif; ?>
+                    </p>
+                    <?php if ( ! empty( $bulk_result['messages'] ) ) : ?>
+                        <ul style="margin:0 0 0 1.2em;list-style:disc;">
+                            <?php foreach ( $bulk_result['messages'] as $m ) : ?>
+                                <li><?php echo esc_html( $m ); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <div class="tm-news-stats" style="display:flex;flex-wrap:wrap;gap:12px;margin:1em 0;">
+                <?php foreach ( $stats as $label => $value ) : ?>
+                    <div style="background:#fff;border:1px solid #ccd0d4;padding:10px 14px;min-width:140px;">
+                        <div style="font-size:11px;text-transform:uppercase;color:#666;"><?php echo esc_html( $label ); ?></div>
+                        <div style="font-size:20px;font-weight:600;"><?php echo esc_html( (string) $value ); ?></div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:1em 0;display:flex;gap:10px;align-items:center;">
+                <input type="hidden" name="action" value="tm_news_fetch_items" />
+                <?php wp_nonce_field( 'tm_news_fetch_items' ); ?>
+                <?php submit_button( __( 'Забрать новости', 'tm-news' ), 'primary', 'tm_news_fetch', false ); ?>
+                <span class="description"><?php esc_html_e( 'RSS всех включённых источников, новые айтемы попадают в таблицу.', 'tm-news' ); ?></span>
+            </form>
+
+            <form method="get" action="<?php echo esc_url( admin_url( 'edit.php' ) ); ?>">
+                <input type="hidden" name="post_type" value="<?php echo esc_attr( CPT::POST_TYPE ); ?>" />
+                <input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG_ITEMS ); ?>" />
+                <?php $table->search_box( __( 'Поиск', 'tm-news' ), 'tm-news-item' ); ?>
+                <?php $table->display(); ?>
+            </form>
+
+            <p class="description" style="margin-top:1em;">
+                <?php echo wp_kses_post( sprintf(
+                    /* translators: %s: link to digest list */
+                    __( 'Для создания черновика нужен настроенный OpenAI-ключ (см. <a href="%s">News aggregator</a>). Если по URL источника уже есть пост, дубль не создаётся.', 'tm-news' ),
+                    esc_url( admin_url( 'tools.php?page=' . self::PAGE_SLUG ) )
+                ) ); ?>
+            </p>
+        </div>
+        <?php
+    }
+
+    /**
+     * Обрабатываем POST/GET bulk submit таблицы ещё до её рендера: при успехе
+     * делаем redirect (PRG), иначе возвращаем сводку для отображения.
+     *
+     * @return array{created:int,errors:int,messages:string[]}|null
+     */
+    private function maybe_process_make_draft_bulk(): ?array {
+        $action = (string) ( $_REQUEST['action'] ?? '' );
+        if ( $action === '' || $action === '-1' ) {
+            $action = (string) ( $_REQUEST['action2'] ?? '' );
+        }
+        if ( $action !== 'tm_news_make_draft' ) {
+            return null;
+        }
+        $ids = array_map( 'intval', (array) ( $_REQUEST['item_ids'] ?? [] ) );
+        $ids = array_filter( $ids );
+        if ( ! $ids ) {
+            return null;
+        }
+        check_admin_referer( 'bulk-tm_news_items' );
+
+        $created  = 0;
+        $errors   = 0;
+        $messages = [];
+        foreach ( $ids as $iid ) {
+            $res = Publisher::publish_item( (int) $iid );
+            if ( ! empty( $res['ok'] ) ) {
+                $created++;
+            } else {
+                $errors++;
+                $messages[] = sprintf( 'item #%d: %s', (int) $iid, (string) ( $res['err'] ?? 'unknown error' ) );
+            }
+        }
+        return [ 'created' => $created, 'errors' => $errors, 'messages' => array_slice( $messages, 0, 20 ) ];
+    }
+
+    /**
+     * @return array<string,int|string>
+     */
+    private function collect_items_stats(): array {
+        global $wpdb;
+        $items_t = Installer::items_table();
+        $clust_t = Installer::clusters_table();
+
+        $now    = time();
+        $day    = $now - 86400;
+
+        $total       = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t}" );
+        $last_24h    = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$items_t} WHERE fetched_ts >= %d", $day ) );
+        $clustered   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$items_t} WHERE cluster_id IS NOT NULL" );
+        $free        = max( 0, $total - $clustered );
+        $drafted     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clust_t} WHERE post_id IS NOT NULL" );
+        $sources_on  = count( Sources::enabled() );
+        $last_fetch  = (int) $wpdb->get_var( "SELECT MAX(fetched_ts) FROM {$items_t}" );
+        $last_label  = $last_fetch > 0 ? wp_date( 'Y-m-d H:i', $last_fetch ) : '—';
+
+        return [
+            __( 'Всего', 'tm-news' )                => $total,
+            __( 'За 24 часа', 'tm-news' )           => $last_24h,
+            __( 'В кластерах', 'tm-news' )          => $clustered,
+            __( 'Без кластера', 'tm-news' )         => $free,
+            __( 'Черновиков', 'tm-news' )           => $drafted,
+            __( 'Активных источников', 'tm-news' )  => $sources_on,
+            __( 'Последний fetch', 'tm-news' )      => $last_label,
+        ];
     }
 }
