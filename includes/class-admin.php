@@ -310,7 +310,7 @@ final class Admin {
                 <?php submit_button( 'Сохранить настройки' ); ?>
             </form>
 
-            <h2>2. Источники</h2>
+            <h2 id="tm-news-sources">2. Источники</h2>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <input type="hidden" name="action" value="tm_news_save_sources" />
                 <?php wp_nonce_field( 'tm_news_save_sources' ); ?>
@@ -423,11 +423,14 @@ final class Admin {
                 <?php endforeach; ?>
             </div>
 
-            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:1em 0;display:flex;gap:10px;align-items:center;">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:1em 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <input type="hidden" name="action" value="tm_news_fetch_items" />
                 <?php wp_nonce_field( 'tm_news_fetch_items' ); ?>
                 <?php submit_button( __( 'Забрать новости', 'tm-news' ), 'primary', 'tm_news_fetch', false ); ?>
                 <span class="description"><?php esc_html_e( 'RSS всех включённых источников, новые айтемы попадают в таблицу.', 'tm-news' ); ?></span>
+                <a href="<?php echo esc_url( admin_url( 'tools.php?page=' . self::PAGE_SLUG . '#tm-news-sources' ) ); ?>" class="button">
+                    <?php esc_html_e( 'Настроить источники', 'tm-news' ); ?>
+                </a>
             </form>
 
             <?php $this->render_score_explainer(); ?>
