@@ -24,9 +24,24 @@ final class Plugin {
 
         add_action( self::CRON_HOOK, [ $this, 'run_pipeline' ] );
 
+        // Social module: cron schedule + handler + ensure scheduled event exists
+        // даже если плагин был активен до появления модуля v0.5.
+        add_filter( 'cron_schedules', [ Social::class, 'register_cron_schedule' ] );
+        add_action( Social::CRON_HOOK, [ Social::class, 'run_once' ] );
+        add_action( 'init', [ $this, 'ensure_social_cron' ] );
+
         if ( is_admin() ) {
             $admin = new Admin();
             $admin->boot();
+
+            $social_admin = new Social_Admin();
+            $social_admin->boot();
+        }
+    }
+
+    public function ensure_social_cron(): void {
+        if ( ! wp_next_scheduled( Social::CRON_HOOK ) ) {
+            wp_schedule_event( time() + 300, Social::CRON_SCHEDULE, Social::CRON_HOOK );
         }
     }
 
