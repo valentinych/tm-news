@@ -98,7 +98,90 @@ final class Sources {
                 'weight'  => 0.6,
                 'enabled' => false,
             ],
+
+            // --- Общепольские мейнстрим-СМИ. Отключены по умолчанию:
+            // контент чаще не про Труймясто, topic_match задавит их score
+            // до 0.3 × recency × weight — но иногда событие гремит по всей
+            // Польше, и они дают ценный ранний сигнал.
+            'tvn24' => [
+                'name'    => 'TVN24',
+                'url'     => 'https://tvn24.pl/najnowsze.xml',
+                'weight'  => 0.5,
+                'enabled' => false,
+            ],
+            'onet_wiadomosci' => [
+                'name'    => 'Onet Wiadomości',
+                'url'     => 'https://wiadomosci.onet.pl/feed',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'interia_fakty' => [
+                'name'    => 'Interia Fakty',
+                'url'     => 'https://fakty.interia.pl/feed',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'wp_wiadomosci' => [
+                'name'    => 'WP Wiadomości',
+                'url'     => 'https://wiadomosci.wp.pl/rss.xml',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'rmf24' => [
+                'name'    => 'RMF24',
+                'url'     => 'https://www.rmf24.pl/fakty/feed',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'gazeta_pl' => [
+                'name'    => 'Gazeta.pl',
+                'url'     => 'https://wiadomosci.gazeta.pl/pub/rss/wiadomosci.xml',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'polskie_radio' => [
+                'name'    => 'Polskie Radio 24',
+                'url'     => 'https://polskieradio24.pl/rss',
+                'weight'  => 0.4,
+                'enabled' => false,
+            ],
+            'polsat_news' => [
+                'name'    => 'Polsat News',
+                'url'     => 'https://www.polsatnews.pl/rss/polska',
+                'weight'  => 0.3,
+                'enabled' => false,
+            ],
+            'pap' => [
+                'name'    => 'PAP (Polska Agencja Prasowa)',
+                'url'     => 'https://www.pap.pl/kraj/rss.xml',
+                'weight'  => 0.6,
+                'enabled' => false,
+            ],
         ];
+    }
+
+    /**
+     * Мёрджит новые ключи дефолтов в сохранённую опцию. Не перезаписывает
+     * уже существующие источники (сохраняет weight/enabled/URL пользователя).
+     *
+     * Возвращает количество добавленных новых источников.
+     */
+    public static function merge_new_defaults(): int {
+        $current = get_option( self::OPTION, [] );
+        if ( ! is_array( $current ) ) {
+            $current = [];
+        }
+        $added = 0;
+        foreach ( self::defaults() as $key => $src ) {
+            if ( ! isset( $current[ $key ] ) ) {
+                $current[ $key ] = $src;
+                $added++;
+            }
+        }
+        if ( $added > 0 ) {
+            update_option( self::OPTION, $current, false );
+        }
+        return $added;
     }
 
     public static function seed_defaults(): void {

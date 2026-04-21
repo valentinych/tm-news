@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Installer {
 
     private const DB_VERSION_OPTION = 'tm_news_db_version';
-    private const DB_VERSION        = '1';
+    private const DB_VERSION        = '2';
 
     public static function items_table(): string {
         global $wpdb;
@@ -92,6 +92,13 @@ final class Installer {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql_items );
         dbDelta( $sql_clust );
+
+        // v2: добавить новые дефолтные источники к существующей опции.
+        // Идемпотентно, пользовательские настройки не трогаем.
+        $added = Sources::merge_new_defaults();
+        if ( $added > 0 ) {
+            Logger::info( 'sources: merged new defaults', [ 'added' => $added ] );
+        }
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
     }
