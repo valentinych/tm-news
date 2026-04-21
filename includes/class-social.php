@@ -72,13 +72,15 @@ final class Social {
             [ 'platform' => 'youtube', 'handle' => '@interiapl',      'title' => 'Interia',          'url' => 'https://www.youtube.com/@interiapl',      'tags' => 'national,news' ],
             [ 'platform' => 'youtube', 'handle' => '@WirtualnaPolska','title' => 'Wirtualna Polska', 'url' => 'https://www.youtube.com/@WirtualnaPolska','tags' => 'national,news' ],
 
-            // --- Telegram: общепольские (представленность в TG у польских СМИ
-            //     слабая, это ориентиры — проверьте handle прежде чем включать). ---
-            [ 'platform' => 'telegram', 'handle' => 'tvp_info',       'title' => 'TVP Info (TG)',      'url' => 'https://t.me/s/tvp_info',       'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'interiapl',      'title' => 'Interia (TG)',       'url' => 'https://t.me/s/interiapl',      'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'rmf_fm',         'title' => 'RMF FM (TG)',        'url' => 'https://t.me/s/rmf_fm',         'tags' => 'national,news,radio' ],
-            [ 'platform' => 'telegram', 'handle' => 'gazeta_wyborcza','title' => 'Gazeta Wyborcza (TG)','url' => 'https://t.me/s/gazeta_wyborcza','tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'onetpl',         'title' => 'Onet (TG)',          'url' => 'https://t.me/s/onetpl',         'tags' => 'national,news' ],
+            // --- Telegram: общепольские. Все handles проверены на наличие
+            //     публичной истории через t.me/s/<handle> — иначе TG отдаёт
+            //     view/contact-страницу без сообщений и парсер вернёт 0. ---
+            [ 'platform' => 'telegram', 'handle' => 'TVN24_PL',         'title' => 'TVN24 (TG)',          'url' => 'https://t.me/s/TVN24_PL',         'tags' => 'national,news' ],
+            [ 'platform' => 'telegram', 'handle' => 'RzeczpospolitaPL', 'title' => 'Rzeczpospolita (TG)', 'url' => 'https://t.me/s/RzeczpospolitaPL', 'tags' => 'national,news' ],
+            [ 'platform' => 'telegram', 'handle' => 'wyborczapl',       'title' => 'Gazeta Wyborcza (TG)','url' => 'https://t.me/s/wyborczapl',       'tags' => 'national,news' ],
+            [ 'platform' => 'telegram', 'handle' => 'rmf24_pl',         'title' => 'RMF24 (TG)',          'url' => 'https://t.me/s/rmf24_pl',         'tags' => 'national,news,radio' ],
+            [ 'platform' => 'telegram', 'handle' => 'Wiadomosci24',     'title' => 'Wiadomości 24/7 (TG)','url' => 'https://t.me/s/Wiadomosci24',     'tags' => 'national,news' ],
+            [ 'platform' => 'telegram', 'handle' => 'bankier_pl',       'title' => 'Bankier.pl (TG)',     'url' => 'https://t.me/s/bankier_pl',       'tags' => 'national,finance,business' ],
         ];
     }
 
