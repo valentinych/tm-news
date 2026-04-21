@@ -20,7 +20,7 @@ final class Admin {
         add_action( 'admin_post_tm_news_run_now',     [ $this, 'handle_run_now' ] );
         add_action( 'admin_post_tm_news_clear_log',   [ $this, 'handle_clear_log' ] );
         add_action( 'admin_post_tm_news_save_sources', [ $this, 'handle_save_sources' ] );
-        add_action( 'manage_edit-' . CPT::POST_TYPE . '_extra_tablenav', [ $this, 'render_digest_list_toolbar' ], 10, 1 );
+        add_action( 'admin_notices', [ $this, 'render_digest_list_toolbar' ] );
         add_action( 'admin_notices', [ $this, 'digest_list_admin_notices' ] );
     }
 
@@ -106,13 +106,22 @@ final class Admin {
 
     /**
      * Кнопка полного прогона пайплайна на экране списка дайджеста (CPT).
+     *
+     * Выводится через admin_notices, потому что «официального» места для кастомной
+     * кнопки на экране edit.php нет: restrict_manage_posts живёт внутри GET-формы
+     * фильтров, а вкладывать свою form в чужую нельзя. admin_notices даёт отдельный
+     * блок над таблицей.
      */
-    public function render_digest_list_toolbar( string $which ): void {
-        if ( $which !== 'top' || ! current_user_can( 'manage_options' ) ) {
+    public function render_digest_list_toolbar(): void {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( ! $screen || $screen->id !== 'edit-' . CPT::POST_TYPE ) {
+            return;
+        }
+        if ( ! current_user_can( 'manage_options' ) ) {
             return;
         }
         ?>
-        <div class="alignleft actions tm-news-digest-actions" style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div class="notice notice-info tm-news-digest-actions" style="display:flex;align-items:center;gap:12px;padding:10px 12px;">
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0;">
                 <input type="hidden" name="action" value="tm_news_run_now" />
                 <input type="hidden" name="tm_news_redirect" value="digest" />
@@ -127,7 +136,7 @@ final class Admin {
                 );
                 ?>
             </form>
-            <span class="description"><?php esc_html_e( 'Забирает RSS, кластеризует, считает score и создаёт черновики (как «Запустить пайплайн сейчас» без dry-run).', 'tm-news' ); ?></span>
+            <span class="description" style="margin:0;"><?php esc_html_e( 'Забирает RSS, кластеризует, считает score и создаёт черновики (как «Запустить пайплайн сейчас» без dry-run).', 'tm-news' ); ?></span>
         </div>
         <?php
     }
