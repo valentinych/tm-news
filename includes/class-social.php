@@ -84,6 +84,7 @@ final class Social {
             // их не добавляем. То же для большинства русскоязычных каналов
             // (polandin, polandforus, repatriationeu, rabotawarszawa,
             // partyzanka_rb_pl, ukrinpoland) — активность или охват ниже порога.
+            [ 'platform' => 'telegram', 'handle' => 'trojmiast',           'title' => 'Aktualno Trójmiasto (RU)', 'url' => 'https://t.me/s/trojmiast',           'tags' => 'trojmiasto,ru,local,news' ],
             [ 'platform' => 'telegram', 'handle' => 'thewwarsaw',          'title' => 'The Warsaw (RU)',          'url' => 'https://t.me/s/thewwarsaw',          'tags' => 'diaspora,ru,warszawa,news' ],
             [ 'platform' => 'telegram', 'handle' => 'ukrainianinpolandpl', 'title' => 'Ukrainian in Poland (UA)', 'url' => 'https://t.me/s/ukrainianinpolandpl', 'tags' => 'diaspora,ua,news,life' ],
             [ 'platform' => 'telegram', 'handle' => 'yavpolshi',           'title' => 'Я в Польщі / yavp.pl (UA)','url' => 'https://t.me/s/yavpolshi',           'tags' => 'diaspora,ua,news,life' ],
