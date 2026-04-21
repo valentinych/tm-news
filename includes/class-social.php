@@ -72,28 +72,21 @@ final class Social {
             [ 'platform' => 'youtube', 'handle' => '@interiapl',      'title' => 'Interia',          'url' => 'https://www.youtube.com/@interiapl',      'tags' => 'national,news' ],
             [ 'platform' => 'youtube', 'handle' => '@WirtualnaPolska','title' => 'Wirtualna Polska', 'url' => 'https://www.youtube.com/@WirtualnaPolska','tags' => 'national,news' ],
 
-            // --- Telegram: общепольские. Все handles проверены на наличие
-            //     публичной истории через t.me/s/<handle> — иначе TG отдаёт
-            //     view/contact-страницу без сообщений и парсер вернёт 0. ---
-            [ 'platform' => 'telegram', 'handle' => 'TVN24_PL',         'title' => 'TVN24 (TG)',          'url' => 'https://t.me/s/TVN24_PL',         'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'RzeczpospolitaPL', 'title' => 'Rzeczpospolita (TG)', 'url' => 'https://t.me/s/RzeczpospolitaPL', 'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'wyborczapl',       'title' => 'Gazeta Wyborcza (TG)','url' => 'https://t.me/s/wyborczapl',       'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'rmf24_pl',         'title' => 'RMF24 (TG)',          'url' => 'https://t.me/s/rmf24_pl',         'tags' => 'national,news,radio' ],
-            [ 'platform' => 'telegram', 'handle' => 'Wiadomosci24',     'title' => 'Wiadomości 24/7 (TG)','url' => 'https://t.me/s/Wiadomosci24',     'tags' => 'national,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'bankier_pl',       'title' => 'Bankier.pl (TG)',     'url' => 'https://t.me/s/bankier_pl',       'tags' => 'national,finance,business' ],
-
-            // --- Telegram: русско- и украиноязычные каналы о жизни в Польше.
-            //     Это самые релевантные источники для аудитории trojmiasto.online —
-            //     диаспора, работа, легализация, локальные новости на ru/uk. ---
-            [ 'platform' => 'telegram', 'handle' => 'thewwarsaw',          'title' => 'The Warsaw (RU)',            'url' => 'https://t.me/s/thewwarsaw',          'tags' => 'diaspora,ru,warszawa,news' ],
-            [ 'platform' => 'telegram', 'handle' => 'polandin',            'title' => 'Польша — Работа — Жизнь (RU)','url' => 'https://t.me/s/polandin',            'tags' => 'diaspora,ru,jobs,life' ],
-            [ 'platform' => 'telegram', 'handle' => 'polandforus',         'title' => 'Вся Польша для наших (RU)',  'url' => 'https://t.me/s/polandforus',         'tags' => 'diaspora,ru,life,business' ],
-            [ 'platform' => 'telegram', 'handle' => 'repatriationeu',      'title' => 'Карта поляка / ПМЖ (RU)',    'url' => 'https://t.me/s/repatriationeu',      'tags' => 'diaspora,ru,legal,residence' ],
-            [ 'platform' => 'telegram', 'handle' => 'partyzanka_rb_pl',    'title' => 'Partyzanka (RU, беженцы)',   'url' => 'https://t.me/s/partyzanka_rb_pl',    'tags' => 'diaspora,ru,refugees,legal' ],
-            [ 'platform' => 'telegram', 'handle' => 'rabotawarszawa',      'title' => 'Работа Варшава (RU)',        'url' => 'https://t.me/s/rabotawarszawa',      'tags' => 'diaspora,ru,jobs,warszawa' ],
-            [ 'platform' => 'telegram', 'handle' => 'ukrainianinpolandpl', 'title' => 'Ukrainian in Poland (UA)',   'url' => 'https://t.me/s/ukrainianinpolandpl', 'tags' => 'diaspora,ua,news,life' ],
-            [ 'platform' => 'telegram', 'handle' => 'yavpolshi',           'title' => 'Я в Польщі / yavp.pl (UA)',  'url' => 'https://t.me/s/yavpolshi',           'tags' => 'diaspora,ua,news,life' ],
-            [ 'platform' => 'telegram', 'handle' => 'ukrinpoland',         'title' => 'Українці в Польщі (UA)',     'url' => 'https://t.me/s/ukrinpoland',         'tags' => 'diaspora,ua,life' ],
+            // --- Telegram: активные каналы о жизни в Польше на ru/uk.
+            //
+            // Список отфильтрован по реальной активности (по данным прод-базы):
+            //   * >=7 постов за последние 7 дней,
+            //   * средний охват последних 7 постов > 700 просмотров.
+            //
+            // Польские СМИ (TVN24_PL, RzeczpospolitaPL, Wiadomosci24, bankier_pl,
+            // wyborczapl, rmf24_pl) в TG ведут себя как кладбище: последние
+            // посты 2022–2024 годов или единичные просмотры — поэтому в seed
+            // их не добавляем. То же для большинства русскоязычных каналов
+            // (polandin, polandforus, repatriationeu, rabotawarszawa,
+            // partyzanka_rb_pl, ukrinpoland) — активность или охват ниже порога.
+            [ 'platform' => 'telegram', 'handle' => 'thewwarsaw',          'title' => 'The Warsaw (RU)',          'url' => 'https://t.me/s/thewwarsaw',          'tags' => 'diaspora,ru,warszawa,news' ],
+            [ 'platform' => 'telegram', 'handle' => 'ukrainianinpolandpl', 'title' => 'Ukrainian in Poland (UA)', 'url' => 'https://t.me/s/ukrainianinpolandpl', 'tags' => 'diaspora,ua,news,life' ],
+            [ 'platform' => 'telegram', 'handle' => 'yavpolshi',           'title' => 'Я в Польщі / yavp.pl (UA)','url' => 'https://t.me/s/yavpolshi',           'tags' => 'diaspora,ua,news,life' ],
         ];
     }
 
