@@ -103,15 +103,13 @@ final class Sources {
             // контент чаще не про Труймясто, topic_match задавит их score
             // до 0.3 × recency × weight — но иногда событие гремит по всей
             // Польше, и они дают ценный ранний сигнал.
-            'tvn24' => [
-                'name'    => 'TVN24',
-                'url'     => 'https://tvn24.pl/najnowsze.xml',
-                'weight'  => 0.5,
-                'enabled' => false,
-            ],
+            //
+            // TVN24, Polskie Radio и PAP не добавляем: у TVN24 Cloudflare/WAF
+            // отвечает 403 на серверный трафик из не-польских IP, у Polskie
+            // Radio и PAP нет публичного рабочего RSS.
             'onet_wiadomosci' => [
                 'name'    => 'Onet Wiadomości',
-                'url'     => 'https://wiadomosci.onet.pl/feed',
+                'url'     => 'https://wiadomosci.onet.pl/.feed',
                 'weight'  => 0.4,
                 'enabled' => false,
             ],
@@ -139,25 +137,64 @@ final class Sources {
                 'weight'  => 0.4,
                 'enabled' => false,
             ],
-            'polskie_radio' => [
-                'name'    => 'Polskie Radio 24',
-                'url'     => 'https://polskieradio24.pl/rss',
-                'weight'  => 0.4,
-                'enabled' => false,
-            ],
             'polsat_news' => [
                 'name'    => 'Polsat News',
-                'url'     => 'https://www.polsatnews.pl/rss/polska',
+                'url'     => 'https://www.polsatnews.pl/rss/wszystkie.xml',
                 'weight'  => 0.3,
                 'enabled' => false,
             ],
-            'pap' => [
-                'name'    => 'PAP (Polska Agencja Prasowa)',
-                'url'     => 'https://www.pap.pl/kraj/rss.xml',
-                'weight'  => 0.6,
-                'enabled' => false,
-            ],
         ];
+    }
+
+    /**
+     * Одноразовая правка опции, добавленной в v2: часть URL оказалась
+     * битой / заблокированной. Меняем/удаляем **только** если источник
+     * всё ещё отключён И URL совпадает с тем самым битым дефолтом, —
+     * т.е. пользователь ничего с ним не делал.
+     *
+     * Возвращает [changed, removed] для лога.
+     *
+     * @return array{0:int,1:int}
+     */
+    public static function cleanup_broken_v2_defaults(): array {
+        $fixes = [
+            // ключ => [ старый битый URL, новый URL | null => удалить ]
+            'onet_wiadomosci' => [ 'https://wiadomosci.onet.pl/feed',              'https://wiadomosci.onet.pl/.feed' ],
+            'polsat_news'     => [ 'https://www.polsatnews.pl/rss/polska',         'https://www.polsatnews.pl/rss/wszystkie.xml' ],
+            'tvn24'           => [ 'https://tvn24.pl/najnowsze.xml',               null ],
+            'polskie_radio'   => [ 'https://polskieradio24.pl/rss',                null ],
+            'pap'             => [ 'https://www.pap.pl/kraj/rss.xml',              null ],
+        ];
+
+        $current = get_option( self::OPTION, [] );
+        if ( ! is_array( $current ) ) {
+            return [ 0, 0 ];
+        }
+        $changed = 0;
+        $removed = 0;
+        foreach ( $fixes as $key => [ $old_url, $new_url ] ) {
+            if ( ! isset( $current[ $key ] ) ) {
+                continue;
+            }
+            $src = $current[ $key ];
+            if ( ! empty( $src['enabled'] ) ) {
+                continue; // пользователь включил — не трогаем.
+            }
+            if ( (string) ( $src['url'] ?? '' ) !== $old_url ) {
+                continue; // URL уже кастомный — не трогаем.
+            }
+            if ( $new_url === null ) {
+                unset( $current[ $key ] );
+                $removed++;
+            } else {
+                $current[ $key ]['url'] = $new_url;
+                $changed++;
+            }
+        }
+        if ( $changed || $removed ) {
+            update_option( self::OPTION, $current, false );
+        }
+        return [ $changed, $removed ];
     }
 
     /**

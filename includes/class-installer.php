@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class Installer {
 
     private const DB_VERSION_OPTION = 'tm_news_db_version';
-    private const DB_VERSION        = '2';
+    private const DB_VERSION        = '3';
 
     public static function items_table(): string {
         global $wpdb;
@@ -98,6 +98,14 @@ final class Installer {
         $added = Sources::merge_new_defaults();
         if ( $added > 0 ) {
             Logger::info( 'sources: merged new defaults', [ 'added' => $added ] );
+        }
+
+        // v3: часть URL из v2 оказалась битой (TVN24 блокируется WAF,
+        // Polskie Radio и PAP — нет публичного фида, Onet/Polsat — опечатка).
+        // Чиним/удаляем только там, где пользователь их не включал.
+        [ $fixed, $removed ] = Sources::cleanup_broken_v2_defaults();
+        if ( $fixed || $removed ) {
+            Logger::info( 'sources: cleanup v2 defaults', [ 'fixed' => $fixed, 'removed' => $removed ] );
         }
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
