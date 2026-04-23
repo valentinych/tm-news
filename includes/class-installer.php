@@ -66,6 +66,10 @@ final class Installer {
         if ( $current !== self::DB_VERSION ) {
             self::install_schema();
             update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+            // CPT rewrite-правила могли поменяться между версиями (slug, archive,
+            // query_var). register_activation_hook не срабатывает при rsync-деплое
+            // без переактивации плагина, поэтому принудительно сбрасываем здесь.
+            flush_rewrite_rules( false );
         }
     }
 
