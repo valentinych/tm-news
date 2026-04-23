@@ -27,7 +27,10 @@ final class CPT {
             'public'        => true,
             'show_in_rest'  => true,
             'has_archive'   => true,
-            'rewrite'       => [ 'slug' => 'novosti' ],
+            // ВАЖНО: не использовать slug 'novosti' — он занят slug'ом
+            // категории «Новости», через которую публикуются обычные post-записи.
+            // Иначе CPT-rewrite перехватывает все /novosti/<...>/ и даёт 404.
+            'rewrite'       => [ 'slug' => 'news-digest' ],
             'menu_icon'     => 'dashicons-rss',
             'menu_position' => 22,
             'supports'      => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields' ],
